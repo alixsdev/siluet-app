@@ -8,6 +8,7 @@ interface DroppedItem {
   x: number
   y: number
   size: number
+  zIndex: number
 }
 
 export default function FileUploader() {
@@ -15,8 +16,7 @@ export default function FileUploader() {
   const [droppedItems, setDroppedItems] = useState<DroppedItem[]>([])
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const [resizingIndex, setResizingIndex] = useState<number | null>(null)
-
-  const containerRef = useRef<HTMLDivElement | null>(null)
+  const zIndexCounter = useRef<number>(1)
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
@@ -36,7 +36,11 @@ export default function FileUploader() {
     const bounds = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - bounds.left
     const y = e.clientY - bounds.top
-    setDroppedItems(prev => [...prev, { src, x, y, size: 100 }])
+    zIndexCounter.current += 1
+    setDroppedItems(prev => [
+      ...prev,
+      { src, x, y, size: 100, zIndex: zIndexCounter.current },
+    ])
   }
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -45,16 +49,15 @@ export default function FileUploader() {
 
   const handleMouseDown = (
     index: number,
-    e: React.MouseEvent<HTMLImageElement>
+    e: React.MouseEvent<HTMLDivElement>
   ) => {
     e.preventDefault()
     setDraggingIndex(index)
+    bringToFront(index)
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const bounds = containerRef.current?.getBoundingClientRect()
-    if (!bounds) return
-
+    const bounds = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - bounds.left
     const y = e.clientY - bounds.top
 
@@ -75,7 +78,10 @@ export default function FileUploader() {
         const updated = [...prev]
         const item = updated[resizingIndex]
         const newSize = Math.max(50, x - item.x)
-        updated[resizingIndex] = { ...item, size: newSize }
+        updated[resizingIndex] = {
+          ...item,
+          size: newSize,
+        }
         return updated
       })
     }
@@ -86,11 +92,24 @@ export default function FileUploader() {
     setResizingIndex(null)
   }
 
+  const handleResizeStart = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setResizingIndex(index)
+    bringToFront(index)
+  }
+
+  const bringToFront = (index: number) => {
+    zIndexCounter.current += 1
+    setDroppedItems(prev => {
+      const updated = [...prev]
+      updated[index].zIndex = zIndexCounter.current
+      return updated
+    })
+  }
+
   return (
     <div className="flex flex-col items-center gap-6">
-      {/* Zone Silhouette */}
       <div
-        ref={containerRef}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onMouseMove={handleMouseMove}
@@ -104,7 +123,6 @@ export default function FileUploader() {
           className="object-contain z-0 pointer-events-none"
         />
 
-        {/* Images déposées */}
         {droppedItems.map((item, index) => (
           <div
             key={index}
@@ -112,28 +130,25 @@ export default function FileUploader() {
             style={{
               left: item.x,
               top: item.y,
-              width: `${item.size}px`,
-              height: `${item.size}px`,
+              width: item.size,
+              height: item.size,
+              zIndex: item.zIndex,
             }}
+            onMouseDown={e => handleMouseDown(index, e)}
           >
             <img
               src={item.src}
               alt="dragged"
-              className="w-full h-full object-contain cursor-move"
-              onMouseDown={e => handleMouseDown(index, e)}
+              className="w-full h-full object-contain pointer-events-none"
             />
-            {/* Handle de redimensionnement */}
             <div
-              onMouseDown={() => setResizingIndex(index)}
-              className="absolute bottom-0 right-0 w-4 h-4 bg-white border border-gray-500 cursor-nwse-resize"
-              style={{ zIndex: 20 }}
-              title="Redimensionner"
+              onMouseDown={e => handleResizeStart(index, e)}
+              className="absolute bottom-0 right-0 w-4 h-4 bg-white border border-gray-500 cursor-se-resize"
             />
           </div>
         ))}
       </div>
 
-      {/* Zone Import */}
       <div className="border-2 border-dashed border-gray-400 p-4 rounded bg-[#EDE7DF] text-center max-w-sm w-full">
         <p className="mb-2">Glissez une image ou cliquez sur Importer</p>
         <label className="bg-[#4B3C2F] text-white px-4 py-2 rounded cursor-pointer inline-block">
@@ -147,7 +162,6 @@ export default function FileUploader() {
         </label>
       </div>
 
-      {/* Galerie */}
       <div className="flex gap-4 overflow-x-auto max-w-sm w-full">
         {previews.map((src, index) => (
           <img
