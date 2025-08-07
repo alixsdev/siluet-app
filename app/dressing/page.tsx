@@ -1,3 +1,5 @@
+import '../styles/globals.css'
+
 export default function DressingPage() {
   return (
     <div className="p-4">

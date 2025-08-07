@@ -12,7 +12,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body className="bg-neutral-100">
-        <Navbar />
+        <div className="fixed bottom-0 left-0 w-full z-50">
+          <Navbar />
+        </div>
         {children}
       </body>
     </html>
