@@ -1,9 +1,11 @@
-import '../styles/globals.css'
-
+// app/projets/page.tsx
 export default function ProjetsPage() {
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-semibold">Mes projets</h2>
-    </div>
-  )
+    <main className="p-6">
+      <h1 className="text-2xl font-bold">Projets</h1>
+      <p className="text-neutral-600 mt-2">
+        Vous n&apos;avez pas encore de projet enregistré.
+      </p>
+    </main>
+  );
 }

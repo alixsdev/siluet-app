@@ -18,6 +18,27 @@ export default function FileUploader() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const zIndexCounter = useRef<number>(1)
 
+  const [toast, setToast] = useState<string | null>(null)
+  const [collection, setCollection] = useState<string>("")
+  const [showModal, setShowModal] = useState(false)
+
+  const [lookbooks, setLookbooks] = useState<string[]>([])
+  const [selectedLookbook, setSelectedLookbook] = useState<string>("")
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('siluet:lookbooks')
+      const list: string[] = raw ? JSON.parse(raw) : []
+      const base = list.length ? list : ['Lookbook par défaut']
+      setLookbooks(base)
+      setSelectedLookbook(base[0])
+    } catch {
+      const base = ['Lookbook par défaut']
+      setLookbooks(base)
+      setSelectedLookbook(base[0])
+    }
+  }, [])
+
   // UI constants
   const SIL_WIDTH = 320 // largeur silhouette
   const GALLERY_CELL_H = 112 // hauteur uniforme des vignettes
@@ -104,6 +125,26 @@ export default function FileUploader() {
     setSelectedIndex(null)
   }
 
+  const saveProject = () => {
+    const project = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      collection,
+      lookbook: selectedLookbook,
+      items: droppedItems,
+    }
+    const key = 'siluet:projects'
+    const existing = JSON.parse(localStorage.getItem(key) || '[]')
+    localStorage.setItem(key, JSON.stringify([project, ...existing]))
+    setToast('Tenue enregistrée ✅')
+    setTimeout(() => setToast(null), 2200)
+  }
+
+  const confirmSaveToLookbook = () => {
+    saveProject()
+    setShowModal(false)
+  }
+
   // ---- UI helper (bouton secondaire carré) ----
   const ToolBtn = ({
     title,
@@ -134,40 +175,65 @@ export default function FileUploader() {
   return (
     <div className="max-w-6xl mx-auto py-6 flex flex-col md:flex-row items-start justify-center gap-8">
       {/* Colonne gauche : 2× silhouette = 640px */}
-      <div className="w-full md:w-[640px]">
-        {/* Import */}
-        <div className="border-2 border-dashed border-gray-400 p-4 rounded bg-[#EDE7DF] text-center w-full">
-          <p className="mb-2">Glissez une image ou cliquez sur Importer</p>
-          <label className="bg-[#4B3C2F] text-white px-4 py-2 rounded cursor-pointer inline-block">
-            Importer
-            <input type="file" multiple onChange={handleChange} className="hidden" />
-          </label>
-        </div>
-
-        {/* Galerie : grille, hauteur uniforme, scroll vertical */}
-        <div className="mt-4 max-h-[520px] overflow-y-auto pr-2 pl-1 pt-1">
-          <div className="grid grid-cols-3 gap-3">
-            {previews.map((src, index) => (
-              <div key={index} className="relative">
-                <img
-                  src={src}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData('text/plain', src)}
-                  className="w-full"
-                  style={{ height: GALLERY_CELL_H, objectFit: 'cover' }}
-                  alt={`preview-${index}`}
-                />
-                {/* Suppression de la galerie */}
-                <button
-                  onClick={() => handleDeletePreview(index)}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white text-black text-xs leading-6 text-center shadow border border-gray-300 hover:bg-gray-100"
-                  title="Supprimer de la galerie"
-                  aria-label="Supprimer de la galerie"
-                >
-                  ✕
-                </button>
+      <div className="w-full md:w-[640px]" style={{ height: 520 }}>
+        <div className="h-full flex flex-col">
+          {/* Galerie : hauteur uniforme, largeur proportionnelle, pas de crop */}
+          <div className="flex-1 overflow-y-auto pr-2 pl-1 pt-1">
+            {previews.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-gray-600 text-center px-4">
+                vous n'avez pas encore ajouté de vêtement à cette tenue.
               </div>
-            ))}
+            ) : (
+              <div className="flex flex-wrap gap-3 items-start">
+                {previews.map((src, index) => (
+                  <div key={index} className="relative inline-block">
+                    <img
+                      src={src}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData('text/plain', src)}
+                      className="h-[112px] w-auto object-contain border rounded bg-white"
+                      alt={`preview-${index}`}
+                      loading="lazy"
+                    />
+                    {/* Pastille suppression (fond blanc, croix noire) */}
+                    <button
+                      onClick={() => handleDeletePreview(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white text-black text-xs leading-6 text-center shadow border border-gray-300 hover:bg-gray-100"
+                      title="Supprimer de la galerie"
+                      aria-label="Supprimer de la galerie"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sélecteur de dressing spécifique */}
+          <div className="mt-3 px-1">
+            <label className="block text-sm font-medium text-[#4B3C2F] mb-1">Dressing</label>
+            <select
+              value={collection}
+              onChange={(e) => setCollection(e.target.value)}
+              className="w-full border border-[#4B3C2F] rounded-md px-2 py-2 bg-white text-[#4B3C2F] focus:outline-none focus:ring-1 focus:ring-[#4B3C2F]"
+            >
+              <option value="" disabled>Sélectionner une collection…</option>
+              <option>Louis Vuitton - Fall 25</option>
+              <option>Dior - Resort 25</option>
+              <option>Basics Siluet</option>
+            </select>
+          </div>
+
+          {/* Zone d'import (bouton secondary) alignée en bas */}
+          <div className="mt-3">
+            <div className="border-2 border-dashed border-gray-400 p-4 rounded bg-[#EDE7DF] text-center w-full">
+              <p className="mb-2">Glissez une image ou utilisez Importer</p>
+              <label className="inline-flex items-center justify-center px-4 py-2 rounded border border-[#4B3C2F] text-[#4B3C2F] bg-white hover:bg-[#F5EFE7] cursor-pointer">
+                Importer (local)
+                <input type="file" multiple onChange={handleChange} className="hidden" />
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -251,7 +317,99 @@ export default function FileUploader() {
             <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
           </svg>
         </ToolBtn>
+
+        {/* Enregistrer (primary, icône rond check) */}
+        <button
+          onClick={() => setShowModal(true)}
+          title="Enregistrer"
+          aria-label="Enregistrer"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#4B3C2F] text-white hover:brightness-110 border border-[#4B3C2F]"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9 12l2 2 4-4"></path>
+          </svg>
+        </button>
       </div>
+
+      {/* Modal Aperçu d'enregistrement */}
+      {showModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+          {/* overlay */}
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} />
+
+          {/* modal card */}
+          <div className="relative z-10 w-[min(92vw,720px)] bg-white rounded-lg shadow-xl overflow-hidden">
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-semibold text-[#4B3C2F]">Aperçu de la tenue</h3>
+            </div>
+
+            <div className="p-4 grid md:grid-cols-2 gap-4">
+              {/* Aperçu visuel : re-rendu de la silhouette et des items (lecture seule) */}
+              <div className="relative bg-gray-100 rounded" style={{ width: '100%', aspectRatio: '320 / 520' }}>
+                {/* cadre proportionnel */}
+                <div className="absolute inset-0">
+                  <Image src="/images/silhouette.png" alt="Silhouette" fill className="object-contain pointer-events-none" />
+                  {droppedItems.map((item, idx) => (
+                    <div key={idx} className="absolute" style={{ left: item.x, top: item.y, width: item.size, height: item.size, zIndex: item.zIndex }}>
+                      <img src={item.src} alt="dragged" className="w-full h-full object-contain select-none pointer-events-none" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Infos */}
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-gray-700">
+                  Vous êtes sur le point d'enregistrer cette tenue dans votre lookbook.
+                </p>
+                <div>
+                  <div className="text-xs text-gray-500">Dressing</div>
+                  <div className="text-sm font-medium">{collection || 'Sans collection'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Éléments</div>
+                  <div className="text-sm">{droppedItems.length} image(s)</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Enregistrer dans un lookbook</div>
+                  <select
+                    value={selectedLookbook}
+                    onChange={(e) => setSelectedLookbook(e.target.value)}
+                    className="mt-1 w-full border border-[#4B3C2F] rounded-md px-2 py-2 bg-white text-[#4B3C2F] focus:outline-none focus:ring-1 focus:ring-[#4B3C2F]"
+                  >
+                    {lookbooks.map((lb) => (
+                      <option key={lb} value={lb}>{lb}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+              {/* Primary = Enregistrer dans un lookbook */}
+              <button
+                onClick={confirmSaveToLookbook}
+                className="px-4 py-2 rounded bg-[#4B3C2F] text-white hover:brightness-110"
+              >
+                Enregistrer la tenue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded shadow">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
